@@ -24,7 +24,7 @@ func (h *Handle) GetName() string {
 	return runtime.FuncForPC(reflect.ValueOf(h).Pointer()).Name()
 }
 
-//Data ...
+// Data ...
 type Data struct {
 	Key        string
 	QueueIndex int
@@ -35,7 +35,7 @@ type Data struct {
 	HandleName string
 }
 
-//Ctrl ...
+// Ctrl ...
 type Ctrl struct {
 	Name           string
 	EventChan      []chan *Data
@@ -43,7 +43,7 @@ type Ctrl struct {
 	QueueIndex     int
 	mu             sync.Mutex
 	Hash           Hash
-	doneChan       chan struct{}
+	stopChan       chan struct{}
 }
 
 func (e *Data) DumpIn(queueIndex int) {
@@ -63,12 +63,12 @@ func (e *Data) DumpStats() {
 	log.Printf("EventData Key:%s QueueIndex:%d Handle:%s cost:%dus", e.Key, e.QueueIndex, e.HandleName, cost)
 }
 
-//DefaultHash ...
+// DefaultHash ...
 func DefaultHash(key string) int {
 	return int(crc32.ChecksumIEEE([]byte(key)))
 }
 
-//NewData ...
+// NewData ...
 func NewData(Key string, data interface{}, Handle Handle) *Data {
 	eventData := &Data{
 		Data:       data,
@@ -79,7 +79,7 @@ func NewData(Key string, data interface{}, Handle Handle) *Data {
 	return eventData
 }
 
-//GetQueueIndexByHash ...
+// GetQueueIndexByHash ...
 func (r *Ctrl) GetQueueIndexByHash(Key string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -87,7 +87,7 @@ func (r *Ctrl) GetQueueIndexByHash(Key string) int {
 	return ret
 }
 
-//GetQueueIndexByRR ...
+// GetQueueIndexByRR ...
 func (r *Ctrl) GetQueueIndexByRR() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -96,7 +96,7 @@ func (r *Ctrl) GetQueueIndexByRR() int {
 	return ret
 }
 
-//EventPut ....
+// EventPut ....
 func (r *Ctrl) EventPut(event *Data, execType ExecType) bool {
 	if event == nil {
 		return false
@@ -113,7 +113,7 @@ func (r *Ctrl) EventPut(event *Data, execType ExecType) bool {
 	return true
 }
 
-//run ...
+// run ...
 func (r *Ctrl) run(evenChan chan *Data) {
 	for {
 		select {
@@ -126,14 +126,14 @@ func (r *Ctrl) run(evenChan chan *Data) {
 				event.Handle(event.Data)
 			}
 			event.DumpStats()
-		case <-r.doneChan:
+		case <-r.stopChan:
 			close(evenChan)
 			return
 		}
 	}
 }
 
-//Run ...
+// Run ...
 func (r *Ctrl) Run() {
 	for i := 0; i < len(r.EventChan); i++ {
 		r.EventChan[i] = make(chan *Data, r.ChanBufferSize)
@@ -142,12 +142,12 @@ func (r *Ctrl) Run() {
 	}
 }
 
-//Stop ...
+// Stop ...
 func (r *Ctrl) Stop() {
-	r.doneChan <- struct{}{}
+	r.stopChan <- struct{}{}
 }
 
-//NewCtrl ...
+// NewCtrl ...
 func NewCtrl(name string, queueCount int, chanBufferSize int64, hash Hash) *Ctrl {
 	ctrl := &Ctrl{
 		Name:           name,
@@ -155,7 +155,7 @@ func NewCtrl(name string, queueCount int, chanBufferSize int64, hash Hash) *Ctrl
 		ChanBufferSize: chanBufferSize,
 		QueueIndex:     0,
 		Hash:           hash,
-		doneChan:       make(chan struct{}),
+		stopChan:       make(chan struct{}),
 	}
 	if ctrl.Hash == nil {
 		ctrl.Hash = DefaultHash
