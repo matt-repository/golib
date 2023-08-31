@@ -89,11 +89,11 @@ func (c *Cron) addTimer(timer *Timer, force bool) bool {
 func (c *Cron) run() {
 	for {
 		time.Sleep(c.sleepPeriod)
-		c.executeTimers()
+		c.execute()
 	}
 }
 
-func (c *Cron) executeTimers() {
+func (c *Cron) execute() {
 	needExecTimers := c.getNeedExecTimers()
 	if needExecTimers == nil {
 		return

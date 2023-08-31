@@ -7,8 +7,8 @@ import (
 // filter condition
 type condition[T any] func(s []T, i int) bool
 
-// Contains determine whether the condition is met in the array
-func Contains[T any](data []T, f condition[T]) bool {
+// Exists determine whether the condition is met in the array
+func Exists[T any](data []T, f condition[T]) bool {
 	for i := 0; i < len(data); i++ {
 		if f(data, i) {
 			return true

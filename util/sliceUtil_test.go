@@ -29,7 +29,7 @@ type StructA struct {
 	A, B int
 }
 
-func Test_slice_Contains(t *testing.T) {
+func Test_slice_Exists(t *testing.T) {
 	type args[T any] struct {
 		f condition[T]
 	}
@@ -50,8 +50,8 @@ func Test_slice_Contains(t *testing.T) {
 		},
 		want: true,
 	}
-	if got := Contains(case1.s, case1.args.f); got != case1.want {
-		t.Errorf("Contains() = %v, want %v", got, case1.want)
+	if got := Exists(case1.s, case1.args.f); got != case1.want {
+		t.Errorf("Exists() = %v, want %v", got, case1.want)
 	}
 
 	case2 := testCase[string]{
@@ -65,8 +65,8 @@ func Test_slice_Contains(t *testing.T) {
 		},
 		want: true,
 	}
-	if got := Contains(case2.s, case2.args.f); got != case2.want {
-		t.Errorf("Contains() = %v, want %v", got, case2.want)
+	if got := Exists(case2.s, case2.args.f); got != case2.want {
+		t.Errorf("Exists() = %v, want %v", got, case2.want)
 	}
 
 	case3 := testCase[StructA]{
@@ -81,8 +81,8 @@ func Test_slice_Contains(t *testing.T) {
 		},
 		want: true,
 	}
-	if got := Contains(case3.s, case3.args.f); got != case3.want {
-		t.Errorf("Contains() = %v, want %v", got, case3.want)
+	if got := Exists(case3.s, case3.args.f); got != case3.want {
+		t.Errorf("Exists() = %v, want %v", got, case3.want)
 	}
 
 }
