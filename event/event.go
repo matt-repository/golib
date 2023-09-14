@@ -3,8 +3,6 @@ package event
 import (
 	"hash/crc32"
 	"log"
-	"reflect"
-	"runtime"
 	"sync"
 	"time"
 )
@@ -16,26 +14,20 @@ const (
 	RRExec                   //循环轮询
 )
 
-type Handle func(data interface{}) error
+type Handle func(data any) error
 
 type Hash func(key string) int
 
-func (h *Handle) GetName() string {
-	return runtime.FuncForPC(reflect.ValueOf(h).Pointer()).Name()
-}
-
-//Data ...
+// Data ...
 type Data struct {
-	Key        string
-	QueueIndex int
-	InTime     time.Time
-	OutTime    time.Time
-	Data       interface{}
-	Handle     Handle //增加一个简化的接口, 用于兼容
-	HandleName string
+	Key         string
+	QueueIndex  int
+	InQueueTime time.Time
+	Data        any
+	Handle      Handle //增加一个简化的接口, 用于兼容
 }
 
-//Ctrl ...
+// Ctrl ...
 type Ctrl struct {
 	Name           string
 	EventChan      []chan *Data
@@ -43,111 +35,88 @@ type Ctrl struct {
 	QueueIndex     int
 	mu             sync.Mutex
 	Hash           Hash
-	doneChan       chan struct{}
 }
 
-func (e *Data) DumpIn(queueIndex int) {
-	e.QueueIndex = queueIndex
-	e.InTime = time.Now()
-	log.Printf("in EventData Key:%s QueueIndex:%d,Handle:%s Data:%v", e.Key, e.QueueIndex, e.HandleName, e.Data)
+// DefaultHash ...
+func DefaultHash(k string) int {
+	return int(crc32.ChecksumIEEE([]byte(k)))
 }
 
-func (e *Data) DumpOut() {
-	e.OutTime = time.Now()
-	cost := (e.OutTime.UnixNano() - e.InTime.UnixNano()) / int64(time.Microsecond)
-	log.Printf("out EventData Key:%s QueueIndex:%d Handle:%s wait:%dus", e.Key, e.QueueIndex, e.HandleName, cost)
-}
-
-func (e *Data) DumpStats() {
-	cost := (time.Now().UnixNano() - e.OutTime.UnixNano()) / int64(time.Microsecond)
-	log.Printf("EventData Key:%s QueueIndex:%d Handle:%s cost:%dus", e.Key, e.QueueIndex, e.HandleName, cost)
-}
-
-//DefaultHash ...
-func DefaultHash(key string) int {
-	return int(crc32.ChecksumIEEE([]byte(key)))
-}
-
-//NewData ...
-func NewData(Key string, data interface{}, Handle Handle) *Data {
+// NewData ...
+func NewData(key string, data any, handle Handle) *Data {
 	eventData := &Data{
-		Data:       data,
-		Key:        Key,
-		Handle:     Handle,
-		HandleName: Handle.GetName(),
+		Data:   data,
+		Key:    key,
+		Handle: handle,
 	}
 	return eventData
 }
 
-//GetQueueIndexByHash ...
-func (r *Ctrl) GetQueueIndexByHash(Key string) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	ret := r.Hash(Key) % len(r.EventChan)
+// GetQueueIndexByHash ...
+func (c *Ctrl) GetQueueIndexByHash(key string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ret := c.Hash(key) % len(c.EventChan)
 	return ret
 }
 
-//GetQueueIndexByRR ...
-func (r *Ctrl) GetQueueIndexByRR() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	ret := r.QueueIndex
-	r.QueueIndex = (r.QueueIndex + 1) % len(r.EventChan)
+// GetQueueIndexByRR ...
+func (c *Ctrl) GetQueueIndexByRR() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ret := c.QueueIndex
+	c.QueueIndex = (c.QueueIndex + 1) % len(c.EventChan)
 	return ret
 }
 
-//EventPut ....
-func (r *Ctrl) EventPut(event *Data, execType ExecType) bool {
-	if event == nil {
+// EventPut ....
+func (c *Ctrl) EventPut(data *Data, execType ExecType) bool {
+	if data == nil {
 		return false
 	}
-	queueIndex := 0
 	switch execType {
 	case HashExec:
-		queueIndex = r.GetQueueIndexByHash(event.Key)
+		data.QueueIndex = c.GetQueueIndexByHash(data.Key)
 	case RRExec:
-		queueIndex = r.GetQueueIndexByRR()
+		data.QueueIndex = c.GetQueueIndexByRR()
 	}
-	event.DumpIn(queueIndex)
-	r.EventChan[queueIndex] <- event
+	data.InQueueTime = time.Now()
+	//log in queue time
+	log.Printf("EventData in :%+v", data.Data)
+
+	c.EventChan[data.QueueIndex] <- data
 	return true
 }
 
-//run ...
-func (r *Ctrl) run(evenChan chan *Data) {
+// run ...
+func (c *Ctrl) run(data chan *Data) {
 	for {
-		select {
-		case event := <-evenChan:
-			if event == nil {
-				continue
-			}
-			event.DumpOut()
-			if event.Handle != nil {
-				event.Handle(event.Data)
-			}
-			event.DumpStats()
-		case <-r.doneChan:
-			close(evenChan)
-			return
+		e := <-data
+		if e == nil {
+			continue
 		}
+		//log in queue => out queue time
+		execStart := time.Now()
+		log.Printf("EventData ExecStart:%+v, wait cost:%fs", e.Data, execStart.Sub(e.InQueueTime).Seconds())
+		if e.Handle != nil {
+			e.Handle(e.Data)
+		}
+		//log out queue => exec end time
+		execEnd := time.Now()
+		log.Printf("EventData ExecEnd:%+v, exec cost:%fs", e.Data, execEnd.Sub(execStart).Seconds())
 	}
 }
 
-//Run ...
-func (r *Ctrl) Run() {
-	for i := 0; i < len(r.EventChan); i++ {
-		r.EventChan[i] = make(chan *Data, r.ChanBufferSize)
-		log.Printf("evenChan[%d]:[%v},bufferSize:[%d]", i, r.EventChan[i], r.ChanBufferSize)
-		go r.run(r.EventChan[i])
+// Run ...
+func (c *Ctrl) Run() {
+	for i := 0; i < len(c.EventChan); i++ {
+		c.EventChan[i] = make(chan *Data, c.ChanBufferSize)
+		log.Printf("evenChan[%d]:bufferSize:[%d]", i, c.ChanBufferSize)
+		go c.run(c.EventChan[i])
 	}
 }
 
-//Stop ...
-func (r *Ctrl) Stop() {
-	r.doneChan <- struct{}{}
-}
-
-//NewCtrl ...
+// NewCtrl ...
 func NewCtrl(name string, queueCount int, chanBufferSize int64, hash Hash) *Ctrl {
 	ctrl := &Ctrl{
 		Name:           name,
@@ -155,7 +124,6 @@ func NewCtrl(name string, queueCount int, chanBufferSize int64, hash Hash) *Ctrl
 		ChanBufferSize: chanBufferSize,
 		QueueIndex:     0,
 		Hash:           hash,
-		doneChan:       make(chan struct{}),
 	}
 	if ctrl.Hash == nil {
 		ctrl.Hash = DefaultHash
