@@ -2,8 +2,8 @@ package _map
 
 import (
 	"fmt"
-	"github.com/matt-repository/matt_golib/common"
-	"github.com/matt-repository/matt_golib/slice"
+	"github.com/matt-repository/golib/common"
+	"github.com/matt-repository/golib/slice"
 	"testing"
 )
 

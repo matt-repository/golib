@@ -1,6 +1,6 @@
 package _map
 
-import "github.com/matt-repository/matt_golib/common"
+import "github.com/matt-repository/golib/common"
 
 // ToSlice ...
 func ToSlice[M ~map[K]V, K comparable, S []E, V any, E any](mapData M, f common.MapGetElement[K, V, E]) S {

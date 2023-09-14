@@ -1,7 +1,7 @@
 package slice
 
 import (
-	"github.com/matt-repository/matt_golib/common"
+	"github.com/matt-repository/golib/common"
 	"sort"
 )
 
