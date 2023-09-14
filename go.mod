@@ -1,4 +1,4 @@
-module github.com/matt-repository/matt_golib
+module github.com/matt-repository/golib
 
 go 1.18
 
