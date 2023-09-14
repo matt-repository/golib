@@ -22,19 +22,19 @@ const (
 	DateFmtHour   = "2006.01.02.15"
 )
 
-type Handler func(data interface{})
+type Handler func(data any)
 
 type Timer struct {
 	name      string        //定时器名字
 	execType  ExecType      //类型
 	handler   Handler       //定时器句柄
 	period    time.Duration //定时器的周期
-	execTime  time.Time     //触发时间
-	data      interface{}   //数据
+	execTime  time.Time     //should be 触发时间
+	data      any           //数据
 	execCount int64         //执行次数
 }
 
-func NewTimer(name string, execType ExecType, period time.Duration, handler Handler, data interface{}) (*Timer, error) {
+func NewTimer(name string, execType ExecType, period time.Duration, handler Handler, data any) (*Timer, error) {
 	if period < 1*time.Second {
 		return nil, fmt.Errorf("NewTimer period must >= 1s")
 	}
@@ -67,10 +67,6 @@ func NewCron() *Cron {
 	return gCtrl
 }
 
-func (c *Cron) String() string {
-	return "timer ctrl "
-}
-
 func (c *Cron) addTimer(timer *Timer, force bool) bool {
 	if timer == nil {
 		return false
@@ -89,11 +85,11 @@ func (c *Cron) addTimer(timer *Timer, force bool) bool {
 func (c *Cron) run() {
 	for {
 		time.Sleep(c.sleepPeriod)
-		c.executeTimers()
+		c.execute()
 	}
 }
 
-func (c *Cron) executeTimers() {
+func (c *Cron) execute() {
 	needExecTimers := c.getNeedExecTimers()
 	if needExecTimers == nil {
 		return
@@ -107,8 +103,8 @@ func (c *Cron) executeTimers() {
 }
 
 func (c *Cron) getNeedExecTimers() []*Timer {
-	if c.Timers == nil {
-		log.Printf("GetNeedExeTask : Timers is nil")
+	if len(c.Timers) == 0 {
+		log.Printf("getNeedExecTimers : Timers count is zero")
 		return nil
 	}
 	needExeTaskTimers := make([]*Timer, 0)
@@ -117,9 +113,8 @@ func (c *Cron) getNeedExecTimers() []*Timer {
 	defer c.lock.RUnlock()
 
 	for _, _timer := range c.Timers {
-		// 如果周期时间跟循环时间差不多。那可能会出问题。
 		if curTime.After(c.lastTime.Add(2 * c.sleepPeriod)) {
-			log.Printf("%s became big from %v to %v ", c, c.lastTime, curTime)
+			log.Printf("timer ctrl became big from %v to %v ", c.lastTime, curTime)
 		}
 
 		if curTime.After(_timer.execTime) {

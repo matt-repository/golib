@@ -11,12 +11,12 @@ import (
 func TestTimer(t *testing.T) {
 	ctrl := NewCron()
 	count := 0
-	_timer, err := NewTimer("test", PeriodExec, 1*time.Second, func(data interface{}) {
-		log.Default().Printf(fmt.Sprintf("time:%s,count:%d", time.Now().Format(DateFmtSecond), count))
+	_timer, err := NewTimer("test", PeriodExec, 1*time.Second, func(data any) {
+		log.Printf(fmt.Sprintf("time:%s,count:%d", time.Now().Format(DateFmtSecond), count))
 		count++
 	}, nil)
 	if err != nil {
-		log.Default().Printf(err.Error())
+		log.Printf(err.Error())
 		return
 	}
 	ctrl.addTimer(_timer, true)
